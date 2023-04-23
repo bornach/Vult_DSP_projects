@@ -1,0 +1,127 @@
+
+// Main processing function
+// 'input' is by default a sine wave at 440 Hz
+fun process(input:real){
+   mem kw:int;
+   mem kickv:int; 
+   mem ks:int;
+   mem ss:int;
+   mem kpitch : int;
+   mem kdelay : int;
+   mem hihatv : int;
+   mem hihatfilt : real;
+   mem hihatdelay : int;
+   mem snarev : int;
+   mem snarepitch : int;
+   mem snared : int;
+   mem r0 : real;
+   mem r1 : real;
+   mem r2 : real;
+   mem s0 : int;
+   mem s1 : int;
+   mem s2 : int;
+   mem clapt : int;
+   mem clapv : int;
+   mem claps : real;
+   mem clapa : real;
+   mem clapw : int;
+   mem cclapt : int;
+   mem mixk:real;
+   mem mixsnare:real;
+   mem mixhihat:real;
+   mem mixclap:real;
+
+   kw = if (kw > 800-(kickv+kpitch)*3) then 0 else (kw + 1);
+   ks = if (ks < kdelay) then (ks + 1) else -kdelay;
+   kickv = if ((kickv > 0) && (ks==0)) then int(kickv*9/10) else kickv;
+   val wkick = real(kickv * kw)/ 800.0 / 128.0;
+
+   s0 = (s0 + 1) % (snarepitch-int(abs(real(s1)/20.0-25.0)));
+   s1 = (s1+1) % 1000;
+   s2 = (s2 + 1) % (snarepitch-60);
+   snarev = if (snarev > 0) then (snarev-1) else 0;
+   val wsnare = real(snarev)*(abs(real(s0-snarepitch/2))+abs(real(s2-snarepitch/2)))*(real(snarev/snared)+0.3*random())/real(snared*snarepitch);
+
+   ss = if (ss < hihatdelay) then (ss + 1) else -hihatdelay;
+   hihatv = if (hihatv>0) && (ss==0) then (hihatv*15/16) else hihatv;
+   r0 = random();
+   r2 = r2 + (r1 - r2)*hihatfilt;
+   r1 = r1 + (r0 - r1)*hihatfilt;
+   val whihat = (r0-r2)*real(hihatv)/128.0;
+
+   val clapd:int = clapw/2000;
+   if (clapt % clapd == 0) clapv = int(random()*2.0);
+   clapt = clapt + 1;
+   claps = claps*0.999;
+   if ((clapt % cclapt == 0) && (clapt < (3*cclapt))) claps = clapa*(0.7+random()*0.3);
+   if (clapt > cclapt) clapw = clapw - 2;
+   val wclap = claps*real(clapv)/2.0;
+
+   return mixk*wkick + mixsnare*wsnare + mixhihat*whihat + mixclap*wclap;
+}
+
+// Called when a note On is received
+and noteOn(note:int,velocity:int,channel:int){
+    mem cclapw : int;
+    val r12:int = note % 12;
+    if (r12==0) kickv = velocity;
+    if (r12==2) snarev = snared*velocity/100;
+    if (r12==4) hihatv = 30+velocity;
+    if (r12==5) {
+      clapt = 0;
+      clapa = real(velocity)*0.007;
+      claps = clapa;
+      clapw = cclapw;
+    }
+}
+
+// Called when a note Off is received
+and noteOff(note:int,channel:int){
+}
+
+// Called when a control changes
+and controlChange(control:int,value:int,channel:int){
+  // kick drum controls
+  if (control==30) kpitch = value;
+  if (control==31) kdelay = value+32;
+  
+  // snare drum controls
+  if (control==32) snarepitch = 500 - 2*value;
+  if (control==33) snared = 8000+64*value;
+  
+  // hi hat controls
+  if (control==34) hihatfilt = real(value+1)*0.007;
+  if (control==35) hihatdelay = value+5;
+
+  // clap controls
+  if (control==36) cclapt = 500 + 20*value;
+  if (control==37) cclapw = 8000 + 200*value;
+  
+  // mixer
+  if (control==38) mixk = real(value)/127.0;
+  if (control==39) mixsnare = real(value)/127.0;
+  if (control==40) mixhihat = real(value)/127.0;
+  if (control==41) mixclap = real(value)/127.0;
+}
+
+// Called on initialization to define initial values
+and default(){
+  ks = 0;
+  kickv = 0;
+  kdelay = 32;
+  ss = 0;
+  hihatv = 0;
+  hihatfilt = 0.25;
+  hihatdelay = 64;
+  snarev = 0;
+  snared = 8000;
+  snarepitch = 300;
+  clapt = 6000;
+  claps = 0.0;
+  cclapw = 15000;
+  cclapt = 1400;
+  mixk = 1.0;
+  mixsnare = 1.0;
+  mixhihat = 1.0;
+  mixclap = 1.0;
+}
